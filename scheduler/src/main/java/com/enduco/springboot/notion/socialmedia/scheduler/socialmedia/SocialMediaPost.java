@@ -3,6 +3,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import notion.api.v1.model.pages.Page;
 
 @Getter
 @Setter
@@ -14,10 +15,12 @@ public class SocialMediaPost {
     final private String channel;
     final private String postAt;
     final private String content;
+    final private Page page;
 
-    public boolean isPostingDateClose(SocialMediaPost post) {
+    public boolean isPostingDateClose() {
         return true;
     }
+
 
     public enum ChannelType {
         DISCORD,

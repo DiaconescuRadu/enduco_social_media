@@ -14,6 +14,7 @@ import notion.api.v1.model.pages.Page;
 import notion.api.v1.model.pages.PageProperty;
 import notion.api.v1.request.pages.UpdatePageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -21,6 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import notion.api.v1.NotionClient;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,17 +33,26 @@ import java.util.stream.Collectors;
 @Service
 public class NotionServiceImpl implements NotionService {
 
-    //todo - get the api key from a properties file
-    //@Value("${notion.api.key}")
-    private String apiKey;
+    @Value("${com.enduco.scheduler.query-interval}")
+    private long queryInterval;
+
+    @Value("${com.enduco.scheduler.notion.bearer-token}")
+    private String token;
+
+    @Value("${com.enduco.scheduler.notion.database-id}")
+    private String databaseId;
 
     @Autowired
     private RestTemplate restTemplate;
 
+    //TODO - move to injected / initialize in constructor
+    NotionClient notionClient;
+    private OffsetDateTime callTime;
+
     @Override
     public List<SocialMediaPost> getSocialMediaPosts() {
         List<SocialMediaPost> socialMediaPosts;
-        NotionClient client = new NotionClient("secret_C6vCjouKO6KzuhwRfu9iNaFkFkZiBoNN1Lxi9jNLRoK");
+        NotionClient client = new NotionClient(token);
 
         QueryTopLevelFilter filter = new QueryTopLevelFilter() {
             @Override
@@ -47,25 +61,24 @@ public class NotionServiceImpl implements NotionService {
             }
         };
         List<? extends QuerySort> sorts = new ArrayList<>();
-        String startCursor = "0";
-        String pageSize = "10";
 
-        QueryResults queryResult = client.queryDatabase("45b4172264ee4320b09336b285ab7521", filter, sorts, null, 100);
+        QueryResults queryResult = client.queryDatabase(databaseId, filter, sorts, null, 100);
 
 
         socialMediaPosts = queryResult.getResults().stream()
                 .map(this::transformPageToPost)
                 .collect(Collectors.toList());
-
+        this.notionClient = client;
+        this.callTime = OffsetDateTime.now();
         return socialMediaPosts;
     }
 
-    private SocialMediaPost transformPageToPost(Page lastPage) {
-        PageProperty nameProperty = lastPage.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Name")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty statusProperty = lastPage.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Status")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty channelProperty = lastPage.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Channel")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty postAtProperty = lastPage.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Post at")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty contentProperty = lastPage.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Content")).map(entry -> entry.getValue()).findFirst().get();
+    private SocialMediaPost transformPageToPost(Page page) {
+        PageProperty nameProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Name")).map(entry -> entry.getValue()).findFirst().get();
+        PageProperty statusProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Status")).map(entry -> entry.getValue()).findFirst().get();
+        PageProperty channelProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Channel")).map(entry -> entry.getValue()).findFirst().get();
+        PageProperty postAtProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Post at")).map(entry -> entry.getValue()).findFirst().get();
+        PageProperty contentProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Content")).map(entry -> entry.getValue()).findFirst().get();
 
         String name = nameProperty.getTitle().stream()
                 .map(PageProperty.RichText::getPlainText)
@@ -86,34 +99,12 @@ public class NotionServiceImpl implements NotionService {
                 .map(PageProperty.RichText::getPlainText)
                 .collect(Collectors.joining());
 
-        return new SocialMediaPost(name, status, channel, postAt, content);
+        return new SocialMediaPost(name, status, channel, postAt, content, page);
     }
 
     @Override
     public boolean moveToPosted(SocialMediaPost post) {
-        List<SocialMediaPost> socialMediaPosts;
-
-        NotionClient client = new NotionClient("secret_C6vCjouKO6KzuhwRfu9iNaFkFkZiBoNN1Lxi9jNLRoK");
-
-        QueryTopLevelFilter filter = new QueryTopLevelFilter() {
-            @Override
-            public int hashCode() {
-                return super.hashCode();
-            }
-        };
-        List<? extends QuerySort> sorts = new ArrayList<>();
-        String startCursor = "0";
-        String pageSize = "10";
-
-        QueryResults queryResult = client.queryDatabase("45b4172264ee4320b09336b285ab7521", filter, sorts, null, 100);
-
-
-        socialMediaPosts = queryResult.getResults().stream()
-                .map(this::transformPageToPost)
-                .collect(Collectors.toList());
-
-        Page pageToChange = queryResult.getResults().get(0);
-
+        Page pageToChange = post.getPage();
         if (pageToChange.getProperties().containsKey("Status")) {
             PageProperty value = pageToChange.getProperties().get("Status");
 
@@ -128,11 +119,31 @@ public class NotionServiceImpl implements NotionService {
 
             propertiesMap.put("Status", value);
 
-            client.updatePage(pageToChange.getId(), propertiesMap, null, null, null);
+            notionClient.updatePage(pageToChange.getId(), propertiesMap, null, null, null);
         } else {
             throw new IllegalArgumentException("Property not found in the page");
         }
 
         return true;
+    }
+
+    @Override
+    public boolean shouldPostBePosted(SocialMediaPost socialMediaPost) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+        OffsetDateTime postDateTime = null;
+        try {
+            postDateTime = OffsetDateTime.parse(socialMediaPost.getPostAt(), formatter);
+            System.out.println("OffsetDateTime: " + postDateTime);
+        } catch (DateTimeParseException e) {
+            System.err.println("Invalid date-time format: " + socialMediaPost.getPostAt());
+        }
+
+        Duration duration = Duration.between(callTime, postDateTime);
+        return (duration.toMillis() > 0) && (duration.toMillis() < queryInterval);
+    }
+
+    @Override
+    public boolean isPostScheduled(SocialMediaPost post) {
+        return post.getStatus().equalsIgnoreCase("Scheduled");
     }
 }

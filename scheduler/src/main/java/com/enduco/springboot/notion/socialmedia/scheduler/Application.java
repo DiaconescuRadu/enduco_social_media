@@ -9,7 +9,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @EnableScheduling
 @SpringBootApplication
@@ -29,12 +34,21 @@ public class Application {
 	@Autowired
 	SocialMediaService socialMediaService;
 
-	@Scheduled(fixedRate = 10000)
+	@Scheduled(fixedRateString = "${com.enduco.scheduler.query-interval}")
 	public void checkPosts() {
 		List<SocialMediaPost> posts = notionService.getSocialMediaPosts();
-		posts.stream()
-				.filter(post -> post.isPostingDateClose(post))
-				.forEach(post -> {socialMediaService.post(post); notionService.moveToPosted(post); });
+
+		List<SocialMediaPost> postsToBePosted = posts.stream()
+				.filter(post -> notionService.isPostScheduled(post))
+				.filter(post -> notionService.shouldPostBePosted(post))
+				.collect(Collectors.toList());
+
+		postsToBePosted.stream()
+				.forEach(post -> socialMediaService.post(post));
+
+		postsToBePosted.stream()
+				.forEach(post -> notionService.moveToPosted(post));
+
 	}
 
 }
