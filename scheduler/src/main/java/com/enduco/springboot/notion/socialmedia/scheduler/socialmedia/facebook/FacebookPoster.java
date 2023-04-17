@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 public class FacebookPoster implements SocialMediaPoster {
     @Override
     public boolean postToSocialMedia(SocialMediaPost post) {
-        System.out.println("Posting to facebook");
-        return true;
+        //unsuported
+        return false;
     }
 }

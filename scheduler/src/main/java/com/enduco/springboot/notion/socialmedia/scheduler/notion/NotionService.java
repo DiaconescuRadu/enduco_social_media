@@ -6,9 +6,12 @@ import java.util.List;
 
 public interface NotionService {
     List<SocialMediaPost> getSocialMediaPosts();
-    boolean moveToPosted(SocialMediaPost post);
+    void moveToPosted(SocialMediaPost post);
+
+    void moveToFailure(SocialMediaPost post);
 
     boolean shouldPostBePosted(SocialMediaPost socialMediaPost);
 
     boolean isPostScheduled(SocialMediaPost post);
+
 }

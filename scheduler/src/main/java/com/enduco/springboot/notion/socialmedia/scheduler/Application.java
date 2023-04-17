@@ -9,20 +9,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @EnableScheduling
 @SpringBootApplication
 public class Application {
-
-
-	private static final String DISCORD_TOKEN = "MTA5MTMyODc1NDUwMjA3NDM4OQ.GF59mV.kn-VHerG8vVd_AhUJ5LeVyNV3uRMgZBWWyjWdI";
-	private static final long CHANNEL_ID = 1091327560069156876L;
 
 	public static void main(String[] args) {
 		SpringApplication.run(Application.class, args);
@@ -41,14 +32,18 @@ public class Application {
 		List<SocialMediaPost> postsToBePosted = posts.stream()
 				.filter(post -> notionService.isPostScheduled(post))
 				.filter(post -> notionService.shouldPostBePosted(post))
-				.collect(Collectors.toList());
+				.toList();
 
-		postsToBePosted.stream()
-				.forEach(post -> socialMediaService.post(post));
+		postsToBePosted
+				.forEach(this::handlePost);
+	}
 
-		postsToBePosted.stream()
-				.forEach(post -> notionService.moveToPosted(post));
-
+	public void handlePost(SocialMediaPost post) {
+		if (socialMediaService.post(post)) {
+			notionService.moveToPosted(post);
+		} else {
+			notionService.moveToFailure(post);
+		}
 	}
 
 }

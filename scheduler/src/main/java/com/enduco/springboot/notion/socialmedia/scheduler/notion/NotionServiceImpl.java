@@ -1,23 +1,15 @@
 package com.enduco.springboot.notion.socialmedia.scheduler.notion;
 
 import com.enduco.springboot.notion.socialmedia.scheduler.socialmedia.SocialMediaPost;
-import com.iwebpp.crypto.TweetNaclFast;
-import notion.api.v1.model.common.Cover;
-import notion.api.v1.model.common.Icon;
 import notion.api.v1.model.common.OptionColor;
-import notion.api.v1.model.common.PropertyType;
 import notion.api.v1.model.databases.DatabaseProperty;
 import notion.api.v1.model.databases.QueryResults;
 import notion.api.v1.model.databases.query.filter.QueryTopLevelFilter;
 import notion.api.v1.model.databases.query.sort.QuerySort;
 import notion.api.v1.model.pages.Page;
 import notion.api.v1.model.pages.PageProperty;
-import notion.api.v1.request.pages.UpdatePageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import notion.api.v1.NotionClient;
@@ -74,11 +66,11 @@ public class NotionServiceImpl implements NotionService {
     }
 
     private SocialMediaPost transformPageToPost(Page page) {
-        PageProperty nameProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Name")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty statusProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Status")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty channelProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Channel")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty postAtProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Post at")).map(entry -> entry.getValue()).findFirst().get();
-        PageProperty contentProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Content")).map(entry -> entry.getValue()).findFirst().get();
+        PageProperty nameProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Name")).map(Map.Entry::getValue).findFirst().get();
+        PageProperty statusProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Status")).map(Map.Entry::getValue).findFirst().get();
+        PageProperty channelProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Channel")).map(Map.Entry::getValue).findFirst().get();
+        PageProperty postAtProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Post at")).map(Map.Entry::getValue).findFirst().get();
+        PageProperty contentProperty = page.getProperties().entrySet().stream().filter(entry -> entry.getKey().contains("Content")).map(Map.Entry::getValue).findFirst().get();
 
         String name = nameProperty.getTitle().stream()
                 .map(PageProperty.RichText::getPlainText)
@@ -103,7 +95,7 @@ public class NotionServiceImpl implements NotionService {
     }
 
     @Override
-    public boolean moveToPosted(SocialMediaPost post) {
+    public void moveToPosted(SocialMediaPost post) {
         Page pageToChange = post.getPage();
         if (pageToChange.getProperties().containsKey("Status")) {
             PageProperty value = pageToChange.getProperties().get("Status");
@@ -123,8 +115,6 @@ public class NotionServiceImpl implements NotionService {
         } else {
             throw new IllegalArgumentException("Property not found in the page");
         }
-
-        return true;
     }
 
     @Override
@@ -145,5 +135,10 @@ public class NotionServiceImpl implements NotionService {
     @Override
     public boolean isPostScheduled(SocialMediaPost post) {
         return post.getStatus().equalsIgnoreCase("Scheduled");
+    }
+
+    @Override
+    public void moveToFailure(SocialMediaPost post) {
+
     }
 }

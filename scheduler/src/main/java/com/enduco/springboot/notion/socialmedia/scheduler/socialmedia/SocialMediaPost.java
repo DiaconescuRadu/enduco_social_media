@@ -17,11 +17,6 @@ public class SocialMediaPost {
     final private String content;
     final private Page page;
 
-    public boolean isPostingDateClose() {
-        return true;
-    }
-
-
     public enum ChannelType {
         DISCORD,
         FACEBOOK,
