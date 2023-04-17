@@ -32,7 +32,9 @@ public class Application {
 	@Scheduled(fixedRate = 10000)
 	public void checkPosts() {
 		List<SocialMediaPost> posts = notionService.getSocialMediaPosts();
-		posts.forEach(post -> socialMediaService.post(post));
+		posts.stream()
+				.filter(post -> post.isPostingDateClose(post))
+				.forEach(post -> {socialMediaService.post(post); notionService.moveToPosted(post); });
 	}
 
 }

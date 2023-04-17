@@ -1,11 +1,18 @@
 package com.enduco.springboot.notion.socialmedia.scheduler.notion;
 
 import com.enduco.springboot.notion.socialmedia.scheduler.socialmedia.SocialMediaPost;
+import com.iwebpp.crypto.TweetNaclFast;
+import notion.api.v1.model.common.Cover;
+import notion.api.v1.model.common.Icon;
+import notion.api.v1.model.common.OptionColor;
+import notion.api.v1.model.common.PropertyType;
+import notion.api.v1.model.databases.DatabaseProperty;
 import notion.api.v1.model.databases.QueryResults;
 import notion.api.v1.model.databases.query.filter.QueryTopLevelFilter;
 import notion.api.v1.model.databases.query.sort.QuerySort;
 import notion.api.v1.model.pages.Page;
 import notion.api.v1.model.pages.PageProperty;
+import notion.api.v1.request.pages.UpdatePageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -43,7 +50,8 @@ public class NotionServiceImpl implements NotionService {
         String startCursor = "0";
         String pageSize = "10";
 
-        QueryResults queryResult = client.queryDatabase("45b4172264ee4320b09336b285ab7521", filter, sorts, null, 10);
+        QueryResults queryResult = client.queryDatabase("45b4172264ee4320b09336b285ab7521", filter, sorts, null, 100);
+
 
         socialMediaPosts = queryResult.getResults().stream()
                 .map(this::transformPageToPost)
@@ -83,6 +91,48 @@ public class NotionServiceImpl implements NotionService {
 
     @Override
     public boolean moveToPosted(SocialMediaPost post) {
-        return false;
+        List<SocialMediaPost> socialMediaPosts;
+
+        NotionClient client = new NotionClient("secret_C6vCjouKO6KzuhwRfu9iNaFkFkZiBoNN1Lxi9jNLRoK");
+
+        QueryTopLevelFilter filter = new QueryTopLevelFilter() {
+            @Override
+            public int hashCode() {
+                return super.hashCode();
+            }
+        };
+        List<? extends QuerySort> sorts = new ArrayList<>();
+        String startCursor = "0";
+        String pageSize = "10";
+
+        QueryResults queryResult = client.queryDatabase("45b4172264ee4320b09336b285ab7521", filter, sorts, null, 100);
+
+
+        socialMediaPosts = queryResult.getResults().stream()
+                .map(this::transformPageToPost)
+                .collect(Collectors.toList());
+
+        Page pageToChange = queryResult.getResults().get(0);
+
+        if (pageToChange.getProperties().containsKey("Status")) {
+            PageProperty value = pageToChange.getProperties().get("Status");
+
+            String postedOptionId = "76cdcc6e-ff77-4927-b659-6bc3dc86664f";
+            String postedOptionText = "Posted";
+            OptionColor postedOptionColor = OptionColor.Green;
+
+            DatabaseProperty.Status.Option postedOption = new DatabaseProperty.Status.Option(postedOptionId, postedOptionText, postedOptionColor);
+
+            value.setStatus(postedOption);
+            Map<String, PageProperty> propertiesMap = new HashMap<>();
+
+            propertiesMap.put("Status", value);
+
+            client.updatePage(pageToChange.getId(), propertiesMap, null, null, null);
+        } else {
+            throw new IllegalArgumentException("Property not found in the page");
+        }
+
+        return true;
     }
 }
